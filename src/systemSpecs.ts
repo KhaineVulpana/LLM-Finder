@@ -24,18 +24,38 @@ export interface SystemSpecs {
 }
 
 export async function getSystemSpecs(): Promise<SystemSpecs> {
+  const cpuPromise = si.cpu().catch(() => ({
+    manufacturer: 'Unknown',
+    brand: 'Unknown CPU',
+    cores: 0,
+    physicalCores: 0,
+    speed: 0
+  }));
+
+  const memPromise = si.mem().catch(() => ({
+    total: 0
+  } as any));
+
+  const graphicsPromise = si.graphics().catch(() => ({
+    controllers: []
+  } as any));
+
+  const osInfoPromise = si.osInfo().catch(() => ({
+    platform: process.platform
+  } as any));
+
   const [cpu, mem, graphics, osInfo] = await Promise.all([
-    si.cpu(),
-    si.mem(),
-    si.graphics(),
-    si.osInfo()
+    cpuPromise,
+    memPromise,
+    graphicsPromise,
+    osInfoPromise
   ]);
 
-  const gpuControllers = graphics.controllers.map(controller => ({
+  const gpuControllers = (graphics.controllers || []).map(controller => ({
     model: controller.model || 'Unknown GPU',
     vram: controller.vram || 0,
     vramGB: Math.round((controller.vram || 0) / 1024)
-  }));
+  })).filter(gpu => gpu.vram > 0 || gpu.model !== 'Unknown GPU');
 
   return {
     cpu: {
@@ -47,7 +67,7 @@ export async function getSystemSpecs(): Promise<SystemSpecs> {
     },
     memory: {
       total: mem.total,
-      totalGB: Math.round(mem.total / (1024 ** 3))
+      totalGB: Math.round((mem.total || 0) / (1024 ** 3))
     },
     gpu: {
       controllers: gpuControllers,
